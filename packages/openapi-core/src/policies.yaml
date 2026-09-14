@@ -1,0 +1,467 @@
+openapi: 3.1.0
+info:
+  title: Agentfence Policies API
+  version: 0.1.0
+  description: |
+    Autonomy boundaries, PEP evaluate/simulate, HITL exceptions, advisory trust signals (BR-2, BR-6–8). Fail-closed when identity/audit unavailable (BR-12).
+  license:
+    name: Proprietary
+    url: https://agentfence.local/license
+  x-domain: pol
+servers:
+  - url: https://api.agentfence.local
+    description: Agentfence API
+security:
+  - bearerAuth: []
+  - apiKey: []
+
+tags:
+  - name: Policies
+    description: Autonomy boundaries and runtime enforcement
+paths:
+  /v1/policies:
+    get:
+      operationId: listAutonomyPolicies
+      tags: [Policies]
+      summary: List autonomy policies
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/Cursor
+        - $ref: ./common/parameters.yaml#/components/parameters/Limit
+        - name: agentId
+          in: query
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/AgentId
+      responses:
+        '200':
+          description: Policies page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutonomyPolicyListResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+    post:
+      operationId: createAutonomyPolicy
+      tags: [Policies]
+      summary: Create an autonomy policy draft
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutonomyPolicyCreateRequest'
+      responses:
+        '201':
+          description: Policy created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutonomyPolicyResponse'
+        '400':
+          $ref: ./common/responses.yaml#/components/responses/BadRequest
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/policies/evaluate:
+    post:
+      operationId: evaluateAgentAction
+      tags: [Policies]
+      summary: Runtime PEP allow/deny decision
+      description: Fail-closed — deny when identity or audit services are unavailable (BR-12).
+      x-repository: none
+      security:
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActionEvaluationRequest'
+      responses:
+        '200':
+          description: Allow or deny decision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionDecisionResponse'
+        '400':
+          $ref: ./common/responses.yaml#/components/responses/BadRequest
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ./common/responses.yaml#/components/responses/Forbidden
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/policies/simulate:
+    post:
+      operationId: simulateAgentAction
+      tags: [Policies]
+      summary: Simulate PEP decision without side effects
+      x-repository: none
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActionEvaluationRequest'
+      responses:
+        '200':
+          description: Simulated decision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionDecisionResponse'
+        '400':
+          $ref: ./common/responses.yaml#/components/responses/BadRequest
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/policies/exceptions:
+    post:
+      operationId: grantPolicyException
+      tags: [Policies]
+      summary: Grant a one-time HITL exception (logged)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyExceptionRequest'
+      responses:
+        '201':
+          description: Exception granted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyExceptionResponse'
+        '400':
+          $ref: ./common/responses.yaml#/components/responses/BadRequest
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/policies/{policyId}:
+    parameters:
+      - name: policyId
+        in: path
+        required: true
+        schema:
+          $ref: ./common/primitives.yaml#/components/schemas/PolicyId
+    get:
+      operationId: getAutonomyPolicy
+      tags: [Policies]
+      summary: Get autonomy policy
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutonomyPolicyResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+    patch:
+      operationId: updateAutonomyPolicy
+      tags: [Policies]
+      summary: Update autonomy policy draft
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutonomyPolicyUpdateRequest'
+      responses:
+        '200':
+          description: Updated policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutonomyPolicyResponse'
+        '400':
+          $ref: ./common/responses.yaml#/components/responses/BadRequest
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/policies/{policyId}/publish:
+    post:
+      operationId: publishAutonomyPolicy
+      tags: [Policies]
+      summary: Publish policy for runtime enforcement
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: policyId
+          in: path
+          required: true
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/PolicyId
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      responses:
+        '200':
+          description: Policy published
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutonomyPolicyResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+components:
+  securitySchemes:
+    apiKey:
+      $ref: ./common/security.yaml#/components/securitySchemes/apiKey
+    bearerAuth:
+      $ref: ./common/security.yaml#/components/securitySchemes/bearerAuth
+
+  schemas:
+    BoundaryRule:
+      type: object
+      required: [ruleType, value]
+      properties:
+        ruleType:
+          type: string
+          enum: [spend, data_domain, tool, sub_agent_depth]
+        value:
+          type: string
+        unit:
+          type: string
+    AutonomyPolicyStatus:
+      type: string
+      enum: [draft, published, archived]
+    AutonomyPolicy:
+      type: object
+      required: [policyId, agentId, status, createdAt, updatedAt]
+      properties:
+        policyId:
+          $ref: ./common/primitives.yaml#/components/schemas/PolicyId
+        agentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        status:
+          $ref: '#/components/schemas/AutonomyPolicyStatus'
+        maxSpendPerDay:
+          type: number
+          format: double
+        allowedTools:
+          type: array
+          items:
+            type: string
+        maxSubAgentDepth:
+          type: integer
+          minimum: 0
+        prohibitedDomains:
+          type: array
+          items:
+            type: string
+        boundaryRules:
+          type: array
+          items:
+            $ref: '#/components/schemas/BoundaryRule'
+        hitlSpendThresholdPct:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 100
+        advisoryTrustScore:
+          type: number
+          format: double
+          description: External staking/reputation — advisory only (BR-7)
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        publishedAt:
+          type: string
+          format: date-time
+    AutonomyPolicyCreateRequest:
+      type: object
+      required: [agentId]
+      properties:
+        agentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        maxSpendPerDay:
+          type: number
+          format: double
+        allowedTools:
+          type: array
+          items:
+            type: string
+        maxSubAgentDepth:
+          type: integer
+        prohibitedDomains:
+          type: array
+          items:
+            type: string
+        boundaryRules:
+          type: array
+          items:
+            $ref: '#/components/schemas/BoundaryRule'
+        hitlSpendThresholdPct:
+          type: number
+          format: double
+    AutonomyPolicyUpdateRequest:
+      type: object
+      properties:
+        maxSpendPerDay:
+          type: number
+          format: double
+        allowedTools:
+          type: array
+          items:
+            type: string
+        maxSubAgentDepth:
+          type: integer
+        prohibitedDomains:
+          type: array
+          items:
+            type: string
+        boundaryRules:
+          type: array
+          items:
+            $ref: '#/components/schemas/BoundaryRule'
+        hitlSpendThresholdPct:
+          type: number
+          format: double
+        advisoryTrustScore:
+          type: number
+          format: double
+    ActionEvaluationRequest:
+      type: object
+      required: [agentId, actionType]
+      properties:
+        agentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        actionType:
+          type: string
+          minLength: 1
+        toolName:
+          type: string
+        estimatedCost:
+          type: number
+          format: double
+        modelProvenance:
+          type: string
+        dataDomain:
+          type: string
+    ActionDecision:
+      type: object
+      required: [allowed, reason]
+      properties:
+        allowed:
+          type: boolean
+        reason:
+          type: string
+        escalationRequired:
+          type: boolean
+        reasonCode:
+          type: string
+        failClosed:
+          type: boolean
+    ActionDecisionResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/ActionDecision'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    PolicyException:
+      type: object
+      required: [exceptionId, agentId, actionType, grantedAt, expiresAt]
+      properties:
+        exceptionId:
+          type: string
+        agentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        actionType:
+          type: string
+        rationale:
+          type: string
+        grantedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+    PolicyExceptionRequest:
+      type: object
+      required: [agentId, actionType, rationale]
+      properties:
+        agentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        actionType:
+          type: string
+        rationale:
+          type: string
+          minLength: 1
+        ttlSeconds:
+          type: integer
+          minimum: 1
+          default: 300
+    PolicyExceptionResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/PolicyException'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    AutonomyPolicyResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/AutonomyPolicy'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    AutonomyPolicyListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AutonomyPolicy'
+        nextCursor:
+          type: string
+    AutonomyPolicyListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/AutonomyPolicyListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta

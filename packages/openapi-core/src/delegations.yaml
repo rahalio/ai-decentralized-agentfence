@@ -1,0 +1,274 @@
+openapi: 3.1.0
+info:
+  title: Agentfence Delegations API
+  version: 0.1.0
+  description: |
+    Parent/child agent delegation graph with boundary inheritance (BR-6).
+  license:
+    name: Proprietary
+    url: https://agentfence.local/license
+  x-domain: dlg
+servers:
+  - url: https://api.agentfence.local
+    description: Agentfence API
+security:
+  - bearerAuth: []
+  - apiKey: []
+
+tags:
+  - name: Delegations
+    description: Sub-agent delegation edges and inheritance
+paths:
+  /v1/delegations:
+    get:
+      operationId: listDelegationEdges
+      tags: [Delegations]
+      summary: List delegation edges
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/Cursor
+        - $ref: ./common/parameters.yaml#/components/parameters/Limit
+        - name: parentAgentId
+          in: query
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/AgentId
+      responses:
+        '200':
+          description: Edges page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DelegationEdgeListResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+    post:
+      operationId: createDelegationEdge
+      tags: [Delegations]
+      summary: Record parent→child delegation (spawn)
+      security:
+        - apiKey: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DelegationEdgeCreateRequest'
+      responses:
+        '201':
+          description: Edge created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DelegationEdgeResponse'
+        '400':
+          $ref: ./common/responses.yaml#/components/responses/BadRequest
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '409':
+          $ref: ./common/responses.yaml#/components/responses/Conflict
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/delegations/graph:
+    get:
+      operationId: getDelegationGraph
+      tags: [Delegations]
+      summary: Get delegation graph rooted at an agent
+      x-repository: none
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: rootAgentId
+          in: query
+          required: true
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/AgentId
+      responses:
+        '200':
+          description: Graph
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DelegationGraphResponse'
+        '400':
+          $ref: ./common/responses.yaml#/components/responses/BadRequest
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/delegations/{delegationId}:
+    get:
+      operationId: getDelegationEdge
+      tags: [Delegations]
+      summary: Get delegation edge
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: delegationId
+          in: path
+          required: true
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/DelegationId
+      responses:
+        '200':
+          description: Edge
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DelegationEdgeResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/delegations/{delegationId}/inheritance:
+    get:
+      operationId: getDelegationInheritance
+      tags: [Delegations]
+      summary: Preview inherited spend/depth/audit context
+      x-repository: none
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: delegationId
+          in: path
+          required: true
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/DelegationId
+      responses:
+        '200':
+          description: Inheritance preview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DelegationInheritanceResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+components:
+  securitySchemes:
+    apiKey:
+      $ref: ./common/security.yaml#/components/securitySchemes/apiKey
+    bearerAuth:
+      $ref: ./common/security.yaml#/components/securitySchemes/bearerAuth
+
+  schemas:
+    DelegationEdge:
+      type: object
+      required: [delegationId, parentAgentId, childAgentId, depth, createdAt]
+      properties:
+        delegationId:
+          $ref: ./common/primitives.yaml#/components/schemas/DelegationId
+        parentAgentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        childAgentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        depth:
+          type: integer
+          minimum: 1
+        inheritedSpendCap:
+          type: number
+          format: double
+        createdAt:
+          type: string
+          format: date-time
+    DelegationEdgeCreateRequest:
+      type: object
+      required: [parentAgentId, childAgentId]
+      properties:
+        parentAgentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        childAgentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+    DelegationGraphNode:
+      type: object
+      required: [agentId, depth]
+      properties:
+        agentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        parentAgentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        depth:
+          type: integer
+    DelegationGraph:
+      type: object
+      required: [rootAgentId, nodes]
+      properties:
+        rootAgentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/DelegationGraphNode'
+        aggregatedSpend:
+          type: number
+          format: double
+    DelegationGraphResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/DelegationGraph'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    DelegationInheritance:
+      type: object
+      required: [delegationId, maxSpendPerDay, maxSubAgentDepth]
+      properties:
+        delegationId:
+          $ref: ./common/primitives.yaml#/components/schemas/DelegationId
+        maxSpendPerDay:
+          type: number
+          format: double
+        maxSubAgentDepth:
+          type: integer
+        allowedTools:
+          type: array
+          items:
+            type: string
+        auditContextAgentIds:
+          type: array
+          items:
+            $ref: ./common/primitives.yaml#/components/schemas/AgentId
+    DelegationInheritanceResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/DelegationInheritance'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    DelegationEdgeResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/DelegationEdge'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    DelegationEdgeListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DelegationEdge'
+        nextCursor:
+          type: string
+    DelegationEdgeListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/DelegationEdgeListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta

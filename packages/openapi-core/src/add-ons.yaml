@@ -1,0 +1,283 @@
+openapi: 3.1.0
+info:
+  title: Agentfence Add-Ons API
+  version: 0.1.0
+  description: |
+    Allowlisted bot extension packages with supply-chain attestation (BR-5).
+  license:
+    name: Proprietary
+    url: https://agentfence.local/license
+  x-domain: ado
+servers:
+  - url: https://api.agentfence.local
+    description: Agentfence API
+security:
+  - bearerAuth: []
+  - apiKey: []
+
+tags:
+  - name: AddOns
+    description: Allowlisted bot extension marketplace
+paths:
+  /v1/add-ons:
+    get:
+      operationId: listAddOnPackages
+      tags: [AddOns]
+      summary: List add-on packages
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/Cursor
+        - $ref: ./common/parameters.yaml#/components/parameters/Limit
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, approved, blocked, revoked]
+      responses:
+        '200':
+          description: Packages page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddOnPackageListResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+    post:
+      operationId: submitAddOnPackage
+      tags: [AddOns]
+      summary: Submit add-on for attestation review
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddOnPackageCreateRequest'
+      responses:
+        '201':
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddOnPackageResponse'
+        '400':
+          $ref: ./common/responses.yaml#/components/responses/BadRequest
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/add-ons/{addOnId}:
+    get:
+      operationId: getAddOnPackage
+      tags: [AddOns]
+      summary: Get add-on package
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: addOnId
+          in: path
+          required: true
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/AddOnId
+      responses:
+        '200':
+          description: Package
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddOnPackageResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/add-ons/{addOnId}/approve:
+    post:
+      operationId: approveAddOnPackage
+      tags: [AddOns]
+      summary: Approve and allowlist add-on
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: addOnId
+          in: path
+          required: true
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/AddOnId
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddOnAttestRequest'
+      responses:
+        '200':
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddOnPackageResponse'
+        '400':
+          $ref: ./common/responses.yaml#/components/responses/BadRequest
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/add-ons/{addOnId}/revoke:
+    post:
+      operationId: revokeAddOnPackage
+      tags: [AddOns]
+      summary: Revoke allowlist status
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: addOnId
+          in: path
+          required: true
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/AddOnId
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddOnRevokeRequest'
+      responses:
+        '200':
+          description: Revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddOnPackageResponse'
+        '400':
+          $ref: ./common/responses.yaml#/components/responses/BadRequest
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/add-ons/{addOnId}/unload:
+    post:
+      operationId: forceUnloadAddOnPackage
+      tags: [AddOns]
+      summary: Force unload add-on from agent runtimes
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: addOnId
+          in: path
+          required: true
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/AddOnId
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      responses:
+        '200':
+          description: Unload signalled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddOnPackageResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+components:
+  securitySchemes:
+    apiKey:
+      $ref: ./common/security.yaml#/components/securitySchemes/apiKey
+    bearerAuth:
+      $ref: ./common/security.yaml#/components/securitySchemes/bearerAuth
+
+  schemas:
+    AddOnStatus:
+      type: string
+      enum: [pending, approved, blocked, revoked]
+    AddOnPackage:
+      type: object
+      required: [addOnId, name, version, status, createdAt]
+      properties:
+        addOnId:
+          $ref: ./common/primitives.yaml#/components/schemas/AddOnId
+        name:
+          type: string
+        version:
+          type: string
+        status:
+          $ref: '#/components/schemas/AddOnStatus'
+        artifactRef:
+          type: string
+        attestationRef:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        approvedAt:
+          type: string
+          format: date-time
+    AddOnPackageCreateRequest:
+      type: object
+      required: [name, version, artifactRef]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        version:
+          type: string
+          minLength: 1
+        artifactRef:
+          type: string
+          minLength: 1
+    AddOnAttestRequest:
+      type: object
+      required: [attestationRef]
+      properties:
+        attestationRef:
+          type: string
+          minLength: 1
+    AddOnRevokeRequest:
+      type: object
+      required: [rationale]
+      properties:
+        rationale:
+          type: string
+          minLength: 1
+    AddOnPackageResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/AddOnPackage'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    AddOnPackageListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AddOnPackage'
+        nextCursor:
+          type: string
+    AddOnPackageListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/AddOnPackageListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta

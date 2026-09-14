@@ -1,0 +1,312 @@
+openapi: 3.1.0
+info:
+  title: Agentfence Kill-Switch API
+  version: 0.1.0
+  description: |
+    Containment orders that halt agent trees and pending transactions within SLA (BR-4, BR-9).
+  license:
+    name: Proprietary
+    url: https://agentfence.local/license
+  x-domain: ksw
+servers:
+  - url: https://api.agentfence.local
+    description: Agentfence API
+security:
+  - bearerAuth: []
+  - apiKey: []
+
+tags:
+  - name: KillSwitch
+    description: Containment and halt orders for agent trees
+paths:
+  /v1/kill-switch/orders:
+    get:
+      operationId: listKillSwitchOrders
+      tags: [KillSwitch]
+      summary: List kill-switch orders
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/Cursor
+        - $ref: ./common/parameters.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: Orders page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KillSwitchOrderListResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+    post:
+      operationId: invokeKillSwitch
+      tags: [KillSwitch]
+      summary: Invoke kill-switch containment
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KillSwitchOrderCreateRequest'
+      responses:
+        '202':
+          description: Kill-switch propagating
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KillSwitchOrderResponse'
+        '400':
+          $ref: ./common/responses.yaml#/components/responses/BadRequest
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/kill-switch/orders/{orderId}:
+    get:
+      operationId: getKillSwitchOrder
+      tags: [KillSwitch]
+      summary: Get kill-switch order status
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/KillSwitchOrderId
+      responses:
+        '200':
+          description: Order status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KillSwitchOrderResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/kill-switch/orders/{orderId}/arm:
+    post:
+      operationId: armKillSwitch
+      tags: [KillSwitch]
+      summary: Dual-control arm step before execute
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/KillSwitchOrderId
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KillSwitchArmRequest'
+      responses:
+        '200':
+          description: Order armed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KillSwitchOrderResponse'
+        '400':
+          $ref: ./common/responses.yaml#/components/responses/BadRequest
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/kill-switch/orders/{orderId}/blast-radius:
+    get:
+      operationId: getKillSwitchBlastRadius
+      tags: [KillSwitch]
+      summary: Preview blast radius (delegation tree)
+      x-repository: none
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/KillSwitchOrderId
+      responses:
+        '200':
+          description: Blast radius preview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KillSwitchBlastRadiusResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/kill-switch/orders/{orderId}/acks:
+    post:
+      operationId: recordKillSwitchAck
+      tags: [KillSwitch]
+      summary: Record marketplace adapter halt acknowledgement
+      security:
+        - apiKey: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/KillSwitchOrderId
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KillSwitchAckRequest'
+      responses:
+        '200':
+          description: Ack recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KillSwitchOrderResponse'
+        '400':
+          $ref: ./common/responses.yaml#/components/responses/BadRequest
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+components:
+  securitySchemes:
+    apiKey:
+      $ref: ./common/security.yaml#/components/securitySchemes/apiKey
+    bearerAuth:
+      $ref: ./common/security.yaml#/components/securitySchemes/bearerAuth
+
+  schemas:
+    KillSwitchStatus:
+      type: string
+      enum: [draft, armed, propagating, completed, failed, partial]
+    KillSwitchOrder:
+      type: object
+      required: [orderId, rootAgentId, status, includeSubAgents, invokedAt]
+      properties:
+        orderId:
+          $ref: ./common/primitives.yaml#/components/schemas/KillSwitchOrderId
+        rootAgentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        status:
+          $ref: '#/components/schemas/KillSwitchStatus'
+        includeSubAgents:
+          type: boolean
+        rationale:
+          type: string
+        armedBy:
+          type: string
+        executedBy:
+          type: string
+        slaDeadlineAt:
+          type: string
+          format: date-time
+        ackCount:
+          type: integer
+        invokedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+    KillSwitchOrderCreateRequest:
+      type: object
+      required: [rootAgentId, rationale]
+      properties:
+        rootAgentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        rationale:
+          type: string
+          minLength: 1
+        includeSubAgents:
+          type: boolean
+          default: true
+        requireDualControl:
+          type: boolean
+          default: true
+    KillSwitchArmRequest:
+      type: object
+      required: [approverId]
+      properties:
+        approverId:
+          type: string
+          minLength: 1
+    KillSwitchAckRequest:
+      type: object
+      required: [adapterId, halted]
+      properties:
+        adapterId:
+          $ref: ./common/primitives.yaml#/components/schemas/AdapterId
+        halted:
+          type: boolean
+        detail:
+          type: string
+    KillSwitchBlastRadius:
+      type: object
+      required: [rootAgentId, agentIds, pendingTxCount]
+      properties:
+        rootAgentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        agentIds:
+          type: array
+          items:
+            $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        pendingTxCount:
+          type: integer
+        depth:
+          type: integer
+    KillSwitchBlastRadiusResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/KillSwitchBlastRadius'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    KillSwitchOrderResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/KillSwitchOrder'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    KillSwitchOrderListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/KillSwitchOrder'
+        nextCursor:
+          type: string
+    KillSwitchOrderListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/KillSwitchOrderListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta

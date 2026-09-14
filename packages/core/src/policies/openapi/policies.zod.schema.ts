@@ -1,0 +1,1139 @@
+import { makeApi, Zodios, type ZodiosOptions } from '@zodios/core';
+import { z } from 'zod';
+
+const createAutonomyPolicy_Body = z
+  .object({
+    agentId: z.string().regex(/^agt_[0-9A-HJKMNP-TV-Z]{26}$/),
+    maxSpendPerDay: z.number().optional(),
+    allowedTools: z.array(z.string()).optional(),
+    maxSubAgentDepth: z.number().int().optional(),
+    prohibitedDomains: z.array(z.string()).optional(),
+    boundaryRules: z
+      .array(
+        z
+          .object({
+            ruleType: z.enum([
+              'spend',
+              'data_domain',
+              'tool',
+              'sub_agent_depth',
+            ]),
+            value: z.string(),
+            unit: z.string().optional(),
+          })
+          .passthrough()
+      )
+      .optional(),
+    hitlSpendThresholdPct: z.number().optional(),
+  })
+  .passthrough();
+const evaluateAgentAction_Body = z
+  .object({
+    agentId: z.string().regex(/^agt_[0-9A-HJKMNP-TV-Z]{26}$/),
+    actionType: z.string().min(1),
+    toolName: z.string().optional(),
+    estimatedCost: z.number().optional(),
+    modelProvenance: z.string().optional(),
+    dataDomain: z.string().optional(),
+  })
+  .passthrough();
+const grantPolicyException_Body = z
+  .object({
+    agentId: z.string().regex(/^agt_[0-9A-HJKMNP-TV-Z]{26}$/),
+    actionType: z.string(),
+    rationale: z.string().min(1),
+    ttlSeconds: z.number().int().gte(1).optional().default(300),
+  })
+  .passthrough();
+const updateAutonomyPolicy_Body = z
+  .object({
+    maxSpendPerDay: z.number(),
+    allowedTools: z.array(z.string()),
+    maxSubAgentDepth: z.number().int(),
+    prohibitedDomains: z.array(z.string()),
+    boundaryRules: z.array(
+      z
+        .object({
+          ruleType: z.enum(['spend', 'data_domain', 'tool', 'sub_agent_depth']),
+          value: z.string(),
+          unit: z.string().optional(),
+        })
+        .passthrough()
+    ),
+    hitlSpendThresholdPct: z.number(),
+    advisoryTrustScore: z.number(),
+  })
+  .partial()
+  .passthrough();
+const BoundaryRule = z
+  .object({
+    ruleType: z.enum(['spend', 'data_domain', 'tool', 'sub_agent_depth']),
+    value: z.string(),
+    unit: z.string().optional(),
+  })
+  .passthrough();
+const AutonomyPolicyStatus = z.enum(['draft', 'published', 'archived']);
+const AutonomyPolicy = z
+  .object({
+    policyId: z.string().regex(/^pol_[0-9A-HJKMNP-TV-Z]{26}$/),
+    agentId: z.string().regex(/^agt_[0-9A-HJKMNP-TV-Z]{26}$/),
+    status: z.enum(['draft', 'published', 'archived']),
+    maxSpendPerDay: z.number().optional(),
+    allowedTools: z.array(z.string()).optional(),
+    maxSubAgentDepth: z.number().int().gte(0).optional(),
+    prohibitedDomains: z.array(z.string()).optional(),
+    boundaryRules: z
+      .array(
+        z
+          .object({
+            ruleType: z.enum([
+              'spend',
+              'data_domain',
+              'tool',
+              'sub_agent_depth',
+            ]),
+            value: z.string(),
+            unit: z.string().optional(),
+          })
+          .passthrough()
+      )
+      .optional(),
+    hitlSpendThresholdPct: z.number().gte(0).lte(100).optional(),
+    advisoryTrustScore: z.number().optional(),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+    publishedAt: z.string().datetime({ offset: true }).optional(),
+  })
+  .passthrough();
+const AutonomyPolicyCreateRequest = z
+  .object({
+    agentId: z.string().regex(/^agt_[0-9A-HJKMNP-TV-Z]{26}$/),
+    maxSpendPerDay: z.number().optional(),
+    allowedTools: z.array(z.string()).optional(),
+    maxSubAgentDepth: z.number().int().optional(),
+    prohibitedDomains: z.array(z.string()).optional(),
+    boundaryRules: z
+      .array(
+        z
+          .object({
+            ruleType: z.enum([
+              'spend',
+              'data_domain',
+              'tool',
+              'sub_agent_depth',
+            ]),
+            value: z.string(),
+            unit: z.string().optional(),
+          })
+          .passthrough()
+      )
+      .optional(),
+    hitlSpendThresholdPct: z.number().optional(),
+  })
+  .passthrough();
+const AutonomyPolicyUpdateRequest = z
+  .object({
+    maxSpendPerDay: z.number(),
+    allowedTools: z.array(z.string()),
+    maxSubAgentDepth: z.number().int(),
+    prohibitedDomains: z.array(z.string()),
+    boundaryRules: z.array(
+      z
+        .object({
+          ruleType: z.enum(['spend', 'data_domain', 'tool', 'sub_agent_depth']),
+          value: z.string(),
+          unit: z.string().optional(),
+        })
+        .passthrough()
+    ),
+    hitlSpendThresholdPct: z.number(),
+    advisoryTrustScore: z.number(),
+  })
+  .partial()
+  .passthrough();
+const ActionEvaluationRequest = z
+  .object({
+    agentId: z.string().regex(/^agt_[0-9A-HJKMNP-TV-Z]{26}$/),
+    actionType: z.string().min(1),
+    toolName: z.string().optional(),
+    estimatedCost: z.number().optional(),
+    modelProvenance: z.string().optional(),
+    dataDomain: z.string().optional(),
+  })
+  .passthrough();
+const ActionDecision = z
+  .object({
+    allowed: z.boolean(),
+    reason: z.string(),
+    escalationRequired: z.boolean().optional(),
+    reasonCode: z.string().optional(),
+    failClosed: z.boolean().optional(),
+  })
+  .passthrough();
+const ActionDecisionResponse = z
+  .object({
+    data: z
+      .object({
+        allowed: z.boolean(),
+        reason: z.string(),
+        escalationRequired: z.boolean().optional(),
+        reasonCode: z.string().optional(),
+        failClosed: z.boolean().optional(),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const PolicyException = z
+  .object({
+    exceptionId: z.string(),
+    agentId: z.string().regex(/^agt_[0-9A-HJKMNP-TV-Z]{26}$/),
+    actionType: z.string(),
+    rationale: z.string().optional(),
+    grantedAt: z.string().datetime({ offset: true }),
+    expiresAt: z.string().datetime({ offset: true }),
+  })
+  .passthrough();
+const PolicyExceptionRequest = z
+  .object({
+    agentId: z.string().regex(/^agt_[0-9A-HJKMNP-TV-Z]{26}$/),
+    actionType: z.string(),
+    rationale: z.string().min(1),
+    ttlSeconds: z.number().int().gte(1).optional().default(300),
+  })
+  .passthrough();
+const PolicyExceptionResponse = z
+  .object({
+    data: z
+      .object({
+        exceptionId: z.string(),
+        agentId: z.string().regex(/^agt_[0-9A-HJKMNP-TV-Z]{26}$/),
+        actionType: z.string(),
+        rationale: z.string().optional(),
+        grantedAt: z.string().datetime({ offset: true }),
+        expiresAt: z.string().datetime({ offset: true }),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const AutonomyPolicyResponse = z
+  .object({
+    data: z
+      .object({
+        policyId: z.string().regex(/^pol_[0-9A-HJKMNP-TV-Z]{26}$/),
+        agentId: z.string().regex(/^agt_[0-9A-HJKMNP-TV-Z]{26}$/),
+        status: z.enum(['draft', 'published', 'archived']),
+        maxSpendPerDay: z.number().optional(),
+        allowedTools: z.array(z.string()).optional(),
+        maxSubAgentDepth: z.number().int().gte(0).optional(),
+        prohibitedDomains: z.array(z.string()).optional(),
+        boundaryRules: z
+          .array(
+            z
+              .object({
+                ruleType: z.enum([
+                  'spend',
+                  'data_domain',
+                  'tool',
+                  'sub_agent_depth',
+                ]),
+                value: z.string(),
+                unit: z.string().optional(),
+              })
+              .passthrough()
+          )
+          .optional(),
+        hitlSpendThresholdPct: z.number().gte(0).lte(100).optional(),
+        advisoryTrustScore: z.number().optional(),
+        createdAt: z.string().datetime({ offset: true }),
+        updatedAt: z.string().datetime({ offset: true }),
+        publishedAt: z.string().datetime({ offset: true }).optional(),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const AutonomyPolicyListData = z
+  .object({
+    items: z.array(
+      z
+        .object({
+          policyId: z.string().regex(/^pol_[0-9A-HJKMNP-TV-Z]{26}$/),
+          agentId: z.string().regex(/^agt_[0-9A-HJKMNP-TV-Z]{26}$/),
+          status: z.enum(['draft', 'published', 'archived']),
+          maxSpendPerDay: z.number().optional(),
+          allowedTools: z.array(z.string()).optional(),
+          maxSubAgentDepth: z.number().int().gte(0).optional(),
+          prohibitedDomains: z.array(z.string()).optional(),
+          boundaryRules: z
+            .array(
+              z
+                .object({
+                  ruleType: z.enum([
+                    'spend',
+                    'data_domain',
+                    'tool',
+                    'sub_agent_depth',
+                  ]),
+                  value: z.string(),
+                  unit: z.string().optional(),
+                })
+                .passthrough()
+            )
+            .optional(),
+          hitlSpendThresholdPct: z.number().gte(0).lte(100).optional(),
+          advisoryTrustScore: z.number().optional(),
+          createdAt: z.string().datetime({ offset: true }),
+          updatedAt: z.string().datetime({ offset: true }),
+          publishedAt: z.string().datetime({ offset: true }).optional(),
+        })
+        .passthrough()
+    ),
+    nextCursor: z.string().optional(),
+  })
+  .passthrough();
+const AutonomyPolicyListResponse = z
+  .object({
+    data: z
+      .object({
+        items: z.array(
+          z
+            .object({
+              policyId: z.string().regex(/^pol_[0-9A-HJKMNP-TV-Z]{26}$/),
+              agentId: z.string().regex(/^agt_[0-9A-HJKMNP-TV-Z]{26}$/),
+              status: z.enum(['draft', 'published', 'archived']),
+              maxSpendPerDay: z.number().optional(),
+              allowedTools: z.array(z.string()).optional(),
+              maxSubAgentDepth: z.number().int().gte(0).optional(),
+              prohibitedDomains: z.array(z.string()).optional(),
+              boundaryRules: z
+                .array(
+                  z
+                    .object({
+                      ruleType: z.enum([
+                        'spend',
+                        'data_domain',
+                        'tool',
+                        'sub_agent_depth',
+                      ]),
+                      value: z.string(),
+                      unit: z.string().optional(),
+                    })
+                    .passthrough()
+                )
+                .optional(),
+              hitlSpendThresholdPct: z.number().gte(0).lte(100).optional(),
+              advisoryTrustScore: z.number().optional(),
+              createdAt: z.string().datetime({ offset: true }),
+              updatedAt: z.string().datetime({ offset: true }),
+              publishedAt: z.string().datetime({ offset: true }).optional(),
+            })
+            .passthrough()
+        ),
+        nextCursor: z.string().optional(),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const AgentId = z.string();
+const Problem = z
+  .object({
+    type: z.string().url(),
+    title: z.string(),
+    status: z.number().int(),
+    detail: z.string(),
+    instance: z.string().url(),
+    code: z.string(),
+  })
+  .partial()
+  .passthrough();
+const PolicyId = z.string();
+const ResponseMeta = z
+  .object({
+    requestId: z.string().uuid(),
+    correlationId: z.string(),
+    generatedAt: z.string().datetime({ offset: true }),
+  })
+  .partial()
+  .passthrough();
+
+export const schemas: any = {
+  createAutonomyPolicy_Body,
+  evaluateAgentAction_Body,
+  grantPolicyException_Body,
+  updateAutonomyPolicy_Body,
+  BoundaryRule,
+  AutonomyPolicyStatus,
+  AutonomyPolicy,
+  AutonomyPolicyCreateRequest,
+  AutonomyPolicyUpdateRequest,
+  ActionEvaluationRequest,
+  ActionDecision,
+  ActionDecisionResponse,
+  PolicyException,
+  PolicyExceptionRequest,
+  PolicyExceptionResponse,
+  AutonomyPolicyResponse,
+  AutonomyPolicyListData,
+  AutonomyPolicyListResponse,
+  AgentId,
+  Problem,
+  PolicyId,
+  ResponseMeta,
+};
+
+const endpoints = makeApi([
+  {
+    method: 'get',
+    path: '/v1/policies',
+    alias: 'listAutonomyPolicies',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'cursor',
+        type: 'Query',
+        schema: z.string().min(1).max(512).optional(),
+      },
+      {
+        name: 'limit',
+        type: 'Query',
+        schema: z.number().int().gte(1).lte(100).optional().default(25),
+      },
+      {
+        name: 'agentId',
+        type: 'Query',
+        schema: z
+          .string()
+          .regex(/^agt_[0-9A-HJKMNP-TV-Z]{26}$/)
+          .optional(),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            items: z.array(
+              z
+                .object({
+                  policyId: z.string().regex(/^pol_[0-9A-HJKMNP-TV-Z]{26}$/),
+                  agentId: z.string().regex(/^agt_[0-9A-HJKMNP-TV-Z]{26}$/),
+                  status: z.enum(['draft', 'published', 'archived']),
+                  maxSpendPerDay: z.number().optional(),
+                  allowedTools: z.array(z.string()).optional(),
+                  maxSubAgentDepth: z.number().int().gte(0).optional(),
+                  prohibitedDomains: z.array(z.string()).optional(),
+                  boundaryRules: z
+                    .array(
+                      z
+                        .object({
+                          ruleType: z.enum([
+                            'spend',
+                            'data_domain',
+                            'tool',
+                            'sub_agent_depth',
+                          ]),
+                          value: z.string(),
+                          unit: z.string().optional(),
+                        })
+                        .passthrough()
+                    )
+                    .optional(),
+                  hitlSpendThresholdPct: z.number().gte(0).lte(100).optional(),
+                  advisoryTrustScore: z.number().optional(),
+                  createdAt: z.string().datetime({ offset: true }),
+                  updatedAt: z.string().datetime({ offset: true }),
+                  publishedAt: z.string().datetime({ offset: true }).optional(),
+                })
+                .passthrough()
+            ),
+            nextCursor: z.string().optional(),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+    errors: [
+      {
+        status: 401,
+        description: `Missing or invalid API key`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+    ],
+  },
+  {
+    method: 'post',
+    path: '/v1/policies',
+    alias: 'createAutonomyPolicy',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: createAutonomyPolicy_Body,
+      },
+      {
+        name: 'Idempotency-Key',
+        type: 'Header',
+        schema: z.string().min(1).max(128),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            policyId: z.string().regex(/^pol_[0-9A-HJKMNP-TV-Z]{26}$/),
+            agentId: z.string().regex(/^agt_[0-9A-HJKMNP-TV-Z]{26}$/),
+            status: z.enum(['draft', 'published', 'archived']),
+            maxSpendPerDay: z.number().optional(),
+            allowedTools: z.array(z.string()).optional(),
+            maxSubAgentDepth: z.number().int().gte(0).optional(),
+            prohibitedDomains: z.array(z.string()).optional(),
+            boundaryRules: z
+              .array(
+                z
+                  .object({
+                    ruleType: z.enum([
+                      'spend',
+                      'data_domain',
+                      'tool',
+                      'sub_agent_depth',
+                    ]),
+                    value: z.string(),
+                    unit: z.string().optional(),
+                  })
+                  .passthrough()
+              )
+              .optional(),
+            hitlSpendThresholdPct: z.number().gte(0).lte(100).optional(),
+            advisoryTrustScore: z.number().optional(),
+            createdAt: z.string().datetime({ offset: true }),
+            updatedAt: z.string().datetime({ offset: true }),
+            publishedAt: z.string().datetime({ offset: true }).optional(),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+    errors: [
+      {
+        status: 400,
+        description: `Malformed request`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+      {
+        status: 401,
+        description: `Missing or invalid API key`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+    ],
+  },
+  {
+    method: 'get',
+    path: '/v1/policies/:policyId',
+    alias: 'getAutonomyPolicy',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'policyId',
+        type: 'Path',
+        schema: z.string().regex(/^pol_[0-9A-HJKMNP-TV-Z]{26}$/),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            policyId: z.string().regex(/^pol_[0-9A-HJKMNP-TV-Z]{26}$/),
+            agentId: z.string().regex(/^agt_[0-9A-HJKMNP-TV-Z]{26}$/),
+            status: z.enum(['draft', 'published', 'archived']),
+            maxSpendPerDay: z.number().optional(),
+            allowedTools: z.array(z.string()).optional(),
+            maxSubAgentDepth: z.number().int().gte(0).optional(),
+            prohibitedDomains: z.array(z.string()).optional(),
+            boundaryRules: z
+              .array(
+                z
+                  .object({
+                    ruleType: z.enum([
+                      'spend',
+                      'data_domain',
+                      'tool',
+                      'sub_agent_depth',
+                    ]),
+                    value: z.string(),
+                    unit: z.string().optional(),
+                  })
+                  .passthrough()
+              )
+              .optional(),
+            hitlSpendThresholdPct: z.number().gte(0).lte(100).optional(),
+            advisoryTrustScore: z.number().optional(),
+            createdAt: z.string().datetime({ offset: true }),
+            updatedAt: z.string().datetime({ offset: true }),
+            publishedAt: z.string().datetime({ offset: true }).optional(),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+    errors: [
+      {
+        status: 401,
+        description: `Missing or invalid API key`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+      {
+        status: 404,
+        description: `Resource not found`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+    ],
+  },
+  {
+    method: 'patch',
+    path: '/v1/policies/:policyId',
+    alias: 'updateAutonomyPolicy',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: updateAutonomyPolicy_Body,
+      },
+      {
+        name: 'policyId',
+        type: 'Path',
+        schema: z.string().regex(/^pol_[0-9A-HJKMNP-TV-Z]{26}$/),
+      },
+      {
+        name: 'Idempotency-Key',
+        type: 'Header',
+        schema: z.string().min(1).max(128),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            policyId: z.string().regex(/^pol_[0-9A-HJKMNP-TV-Z]{26}$/),
+            agentId: z.string().regex(/^agt_[0-9A-HJKMNP-TV-Z]{26}$/),
+            status: z.enum(['draft', 'published', 'archived']),
+            maxSpendPerDay: z.number().optional(),
+            allowedTools: z.array(z.string()).optional(),
+            maxSubAgentDepth: z.number().int().gte(0).optional(),
+            prohibitedDomains: z.array(z.string()).optional(),
+            boundaryRules: z
+              .array(
+                z
+                  .object({
+                    ruleType: z.enum([
+                      'spend',
+                      'data_domain',
+                      'tool',
+                      'sub_agent_depth',
+                    ]),
+                    value: z.string(),
+                    unit: z.string().optional(),
+                  })
+                  .passthrough()
+              )
+              .optional(),
+            hitlSpendThresholdPct: z.number().gte(0).lte(100).optional(),
+            advisoryTrustScore: z.number().optional(),
+            createdAt: z.string().datetime({ offset: true }),
+            updatedAt: z.string().datetime({ offset: true }),
+            publishedAt: z.string().datetime({ offset: true }).optional(),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+    errors: [
+      {
+        status: 400,
+        description: `Malformed request`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+      {
+        status: 401,
+        description: `Missing or invalid API key`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+      {
+        status: 404,
+        description: `Resource not found`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+    ],
+  },
+  {
+    method: 'post',
+    path: '/v1/policies/:policyId/publish',
+    alias: 'publishAutonomyPolicy',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'policyId',
+        type: 'Path',
+        schema: z.string().regex(/^pol_[0-9A-HJKMNP-TV-Z]{26}$/),
+      },
+      {
+        name: 'Idempotency-Key',
+        type: 'Header',
+        schema: z.string().min(1).max(128),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            policyId: z.string().regex(/^pol_[0-9A-HJKMNP-TV-Z]{26}$/),
+            agentId: z.string().regex(/^agt_[0-9A-HJKMNP-TV-Z]{26}$/),
+            status: z.enum(['draft', 'published', 'archived']),
+            maxSpendPerDay: z.number().optional(),
+            allowedTools: z.array(z.string()).optional(),
+            maxSubAgentDepth: z.number().int().gte(0).optional(),
+            prohibitedDomains: z.array(z.string()).optional(),
+            boundaryRules: z
+              .array(
+                z
+                  .object({
+                    ruleType: z.enum([
+                      'spend',
+                      'data_domain',
+                      'tool',
+                      'sub_agent_depth',
+                    ]),
+                    value: z.string(),
+                    unit: z.string().optional(),
+                  })
+                  .passthrough()
+              )
+              .optional(),
+            hitlSpendThresholdPct: z.number().gte(0).lte(100).optional(),
+            advisoryTrustScore: z.number().optional(),
+            createdAt: z.string().datetime({ offset: true }),
+            updatedAt: z.string().datetime({ offset: true }),
+            publishedAt: z.string().datetime({ offset: true }).optional(),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+    errors: [
+      {
+        status: 401,
+        description: `Missing or invalid API key`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+      {
+        status: 404,
+        description: `Resource not found`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+    ],
+  },
+  {
+    method: 'post',
+    path: '/v1/policies/evaluate',
+    alias: 'evaluateAgentAction',
+    description: `Fail-closed — deny when identity or audit services are unavailable (BR-12).`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: evaluateAgentAction_Body,
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            allowed: z.boolean(),
+            reason: z.string(),
+            escalationRequired: z.boolean().optional(),
+            reasonCode: z.string().optional(),
+            failClosed: z.boolean().optional(),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+    errors: [
+      {
+        status: 400,
+        description: `Malformed request`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+      {
+        status: 401,
+        description: `Missing or invalid API key`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+      {
+        status: 403,
+        description: `Authenticated but not permitted`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+    ],
+  },
+  {
+    method: 'post',
+    path: '/v1/policies/exceptions',
+    alias: 'grantPolicyException',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: grantPolicyException_Body,
+      },
+      {
+        name: 'Idempotency-Key',
+        type: 'Header',
+        schema: z.string().min(1).max(128),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            exceptionId: z.string(),
+            agentId: z.string().regex(/^agt_[0-9A-HJKMNP-TV-Z]{26}$/),
+            actionType: z.string(),
+            rationale: z.string().optional(),
+            grantedAt: z.string().datetime({ offset: true }),
+            expiresAt: z.string().datetime({ offset: true }),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+    errors: [
+      {
+        status: 400,
+        description: `Malformed request`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+      {
+        status: 401,
+        description: `Missing or invalid API key`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+    ],
+  },
+  {
+    method: 'post',
+    path: '/v1/policies/simulate',
+    alias: 'simulateAgentAction',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: evaluateAgentAction_Body,
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            allowed: z.boolean(),
+            reason: z.string(),
+            escalationRequired: z.boolean().optional(),
+            reasonCode: z.string().optional(),
+            failClosed: z.boolean().optional(),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+    errors: [
+      {
+        status: 400,
+        description: `Malformed request`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+      {
+        status: 401,
+        description: `Missing or invalid API key`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+    ],
+  },
+]);
+
+export const api: any = new Zodios('https://api.agentfence.local/v1', endpoints);
+
+export function createApiClient(baseUrl: string, options?: ZodiosOptions): any {
+  return new Zodios(baseUrl, endpoints, options);
+}

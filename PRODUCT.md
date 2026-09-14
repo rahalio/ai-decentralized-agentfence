@@ -106,10 +106,10 @@ flowchart TD
 - **Leading:** percentage of agent actions passing through PEP; time to execute kill-switch; add-ons blocked at registry; boundary near-miss escalations.
 - **Lagging:** incidents contained without financial loss; audit findings cleared; enterprise marketplace participation rate; mean time to recover after kill-switch; zero unregistered shadow agents in production scans.
 
-## OpenAPI skeleton
+## OpenAPI
 
-Canonical HTTP surface lives in sibling [openapi.yaml](openapi.yaml). Summary:
+Canonical HTTP surface is split per domain under [`packages/openapi-core/src/`](packages/openapi-core/src/) (one YAML file per domain). Summary:
 
-- **Base path:** `/v1/...`
+- **Base path:** `/v1/...` (identity platform routes remain under `/v0/...`)
 - **Auth:** `X-API-Key` for agent runtime PEP callbacks; Bearer JWT for security and compliance consoles.
-- **Resource groups:** Agents, Policies, Audits, KillSwitch, AddOns, Reporting.
+- **Domains:** identity, agents, policies, audits, kill-switch, add-ons, delegations, incidents, reporting, marketplace-adapters.

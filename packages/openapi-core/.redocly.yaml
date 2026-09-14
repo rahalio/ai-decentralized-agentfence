@@ -1,0 +1,38 @@
+apis:
+  identity:
+    root: src/identity.yaml
+  agents:
+    root: src/agents.yaml
+  policies:
+    root: src/policies.yaml
+  audits:
+    root: src/audits.yaml
+  kill-switch:
+    root: src/kill-switch.yaml
+  add-ons:
+    root: src/add-ons.yaml
+  delegations:
+    root: src/delegations.yaml
+  incidents:
+    root: src/incidents.yaml
+  reporting:
+    root: src/reporting.yaml
+  marketplace-adapters:
+    root: src/marketplace-adapters.yaml
+
+extends:
+  - recommended
+
+rules:
+  no-unused-components: off
+  operation-4xx-response: warn
+  info-license: off
+  info-license-url: off
+  tag-description: off
+  operation-operationId: error
+  no-invalid-media-type-examples: off
+
+theme:
+  openapi:
+    generateCodeSamples:
+      languages: []

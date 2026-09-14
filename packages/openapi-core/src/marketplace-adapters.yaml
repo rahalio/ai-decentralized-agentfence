@@ -1,0 +1,287 @@
+openapi: 3.1.0
+info:
+  title: Agentfence Marketplace Adapters API
+  version: 0.1.0
+  description: |
+    Marketplace runtime adapters, halt acknowledgements, and partner attestation verification.
+  license:
+    name: Proprietary
+    url: https://agentfence.local/license
+  x-domain: mkt
+servers:
+  - url: https://api.agentfence.local
+    description: Agentfence API
+security:
+  - bearerAuth: []
+  - apiKey: []
+
+tags:
+  - name: MarketplaceAdapters
+    description: External marketplace adapters and attestation
+paths:
+  /v1/marketplace-adapters:
+    get:
+      operationId: listMarketplaceAdapters
+      tags: [MarketplaceAdapters]
+      summary: List marketplace adapters
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/Cursor
+        - $ref: ./common/parameters.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: Adapters page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketplaceAdapterListResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+    post:
+      operationId: registerMarketplaceAdapter
+      tags: [MarketplaceAdapters]
+      summary: Register a marketplace adapter
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarketplaceAdapterCreateRequest'
+      responses:
+        '201':
+          description: Adapter registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketplaceAdapterResponse'
+        '400':
+          $ref: ./common/responses.yaml#/components/responses/BadRequest
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/marketplace-adapters/{adapterId}:
+    get:
+      operationId: getMarketplaceAdapter
+      tags: [MarketplaceAdapters]
+      summary: Get marketplace adapter
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: adapterId
+          in: path
+          required: true
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/AdapterId
+      responses:
+        '200':
+          description: Adapter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketplaceAdapterResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/marketplace-adapters/{adapterId}/halt-ack:
+    post:
+      operationId: acknowledgeHalt
+      tags: [MarketplaceAdapters]
+      summary: Adapter acknowledges halt command
+      security:
+        - apiKey: []
+      parameters:
+        - name: adapterId
+          in: path
+          required: true
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/AdapterId
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HaltAckRequest'
+      responses:
+        '200':
+          description: Ack accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HaltAckResponse'
+        '400':
+          $ref: ./common/responses.yaml#/components/responses/BadRequest
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/partner-attestations/{agentId}:
+    get:
+      operationId: verifyPartnerAttestation
+      tags: [MarketplaceAdapters]
+      summary: Partner attestation verifier (read-only)
+      x-repository: none
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/AgentId
+      responses:
+        '200':
+          description: Attestation status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartnerAttestationResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+components:
+  securitySchemes:
+    apiKey:
+      $ref: ./common/security.yaml#/components/securitySchemes/apiKey
+    bearerAuth:
+      $ref: ./common/security.yaml#/components/securitySchemes/bearerAuth
+
+  schemas:
+    MarketplaceKind:
+      type: string
+      enum: [fetch, singularitynet, internal]
+    AdapterStatus:
+      type: string
+      enum: [active, degraded, offline]
+    MarketplaceAdapter:
+      type: object
+      required: [adapterId, name, marketplace, status, createdAt]
+      properties:
+        adapterId:
+          $ref: ./common/primitives.yaml#/components/schemas/AdapterId
+        name:
+          type: string
+        marketplace:
+          $ref: '#/components/schemas/MarketplaceKind'
+        status:
+          $ref: '#/components/schemas/AdapterStatus'
+        webhookUrl:
+          type: string
+          format: uri
+        createdAt:
+          type: string
+          format: date-time
+        lastHaltAckAt:
+          type: string
+          format: date-time
+    MarketplaceAdapterCreateRequest:
+      type: object
+      required: [name, marketplace]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        marketplace:
+          $ref: '#/components/schemas/MarketplaceKind'
+        webhookUrl:
+          type: string
+          format: uri
+    HaltAck:
+      type: object
+      required: [adapterId, orderId, halted, acknowledgedAt]
+      properties:
+        adapterId:
+          $ref: ./common/primitives.yaml#/components/schemas/AdapterId
+        orderId:
+          $ref: ./common/primitives.yaml#/components/schemas/KillSwitchOrderId
+        halted:
+          type: boolean
+        acknowledgedAt:
+          type: string
+          format: date-time
+    HaltAckRequest:
+      type: object
+      required: [orderId, halted]
+      properties:
+        orderId:
+          $ref: ./common/primitives.yaml#/components/schemas/KillSwitchOrderId
+        halted:
+          type: boolean
+        detail:
+          type: string
+    HaltAckResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/HaltAck'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    PartnerAttestation:
+      type: object
+      required: [agentId, attested, enterpriseId]
+      properties:
+        agentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        attested:
+          type: boolean
+        enterpriseId:
+          type: string
+        attestationStatus:
+          type: string
+          enum: [unverified, attested, revoked]
+        marketplaceIds:
+          type: object
+          additionalProperties:
+            type: string
+    PartnerAttestationResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/PartnerAttestation'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    MarketplaceAdapterResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/MarketplaceAdapter'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    MarketplaceAdapterListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MarketplaceAdapter'
+        nextCursor:
+          type: string
+    MarketplaceAdapterListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/MarketplaceAdapterListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta

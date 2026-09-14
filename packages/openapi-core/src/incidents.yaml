@@ -1,0 +1,265 @@
+openapi: 3.1.0
+info:
+  title: Agentfence Incidents API
+  version: 0.1.0
+  description: |
+    Incident playbooks linking audit trails to kill-switch activation and post-mortem (BR-9).
+  license:
+    name: Proprietary
+    url: https://agentfence.local/license
+  x-domain: inc
+servers:
+  - url: https://api.agentfence.local
+    description: Agentfence API
+security:
+  - bearerAuth: []
+  - apiKey: []
+
+tags:
+  - name: Incidents
+    description: Incident playbooks and post-mortems
+paths:
+  /v1/incidents:
+    get:
+      operationId: listIncidents
+      tags: [Incidents]
+      summary: List incidents
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/Cursor
+        - $ref: ./common/parameters.yaml#/components/parameters/Limit
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, investigating, closed]
+      responses:
+        '200':
+          description: Incidents page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncidentListResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+    post:
+      operationId: createIncident
+      tags: [Incidents]
+      summary: Open an incident
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IncidentCreateRequest'
+      responses:
+        '201':
+          description: Incident created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncidentResponse'
+        '400':
+          $ref: ./common/responses.yaml#/components/responses/BadRequest
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/incidents/{incidentId}:
+    get:
+      operationId: getIncident
+      tags: [Incidents]
+      summary: Get incident
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: incidentId
+          in: path
+          required: true
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/IncidentId
+      responses:
+        '200':
+          description: Incident
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncidentResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/incidents/{incidentId}/close:
+    post:
+      operationId: closeIncident
+      tags: [Incidents]
+      summary: Close an incident
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: incidentId
+          in: path
+          required: true
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/IncidentId
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IncidentCloseRequest'
+      responses:
+        '200':
+          description: Closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncidentResponse'
+        '400':
+          $ref: ./common/responses.yaml#/components/responses/BadRequest
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/incidents/{incidentId}/post-mortem:
+    post:
+      operationId: attachIncidentPostMortem
+      tags: [Incidents]
+      summary: Attach post-mortem notes and export refs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: incidentId
+          in: path
+          required: true
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/IncidentId
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IncidentPostMortemRequest'
+      responses:
+        '200':
+          description: Post-mortem attached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncidentResponse'
+        '400':
+          $ref: ./common/responses.yaml#/components/responses/BadRequest
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+components:
+  securitySchemes:
+    apiKey:
+      $ref: ./common/security.yaml#/components/securitySchemes/apiKey
+    bearerAuth:
+      $ref: ./common/security.yaml#/components/securitySchemes/bearerAuth
+
+  schemas:
+    IncidentStatus:
+      type: string
+      enum: [open, investigating, closed]
+    Incident:
+      type: object
+      required: [incidentId, title, status, createdAt]
+      properties:
+        incidentId:
+          $ref: ./common/primitives.yaml#/components/schemas/IncidentId
+        title:
+          type: string
+        status:
+          $ref: '#/components/schemas/IncidentStatus'
+        rootAgentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        killSwitchOrderId:
+          $ref: ./common/primitives.yaml#/components/schemas/KillSwitchOrderId
+        auditEventIds:
+          type: array
+          items:
+            $ref: ./common/primitives.yaml#/components/schemas/AuditEventId
+        postMortem:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        closedAt:
+          type: string
+          format: date-time
+    IncidentCreateRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+        rootAgentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        killSwitchOrderId:
+          $ref: ./common/primitives.yaml#/components/schemas/KillSwitchOrderId
+        auditEventIds:
+          type: array
+          items:
+            $ref: ./common/primitives.yaml#/components/schemas/AuditEventId
+    IncidentCloseRequest:
+      type: object
+      required: [summary]
+      properties:
+        summary:
+          type: string
+          minLength: 1
+    IncidentPostMortemRequest:
+      type: object
+      required: [postMortem]
+      properties:
+        postMortem:
+          type: string
+          minLength: 1
+        notifyMarketplaceSuspension:
+          type: boolean
+          default: false
+    IncidentResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Incident'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    IncidentListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Incident'
+        nextCursor:
+          type: string
+    IncidentListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/IncidentListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta

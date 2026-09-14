@@ -1,0 +1,208 @@
+openapi: 3.1.0
+info:
+  title: Agentfence Reporting API
+  version: 0.1.0
+  description: |
+    Compliance exports and period reports for audit pass rate and containment metrics.
+  license:
+    name: Proprietary
+    url: https://agentfence.local/license
+  x-domain: rpt
+servers:
+  - url: https://api.agentfence.local
+    description: Agentfence API
+security:
+  - bearerAuth: []
+  - apiKey: []
+
+tags:
+  - name: Reporting
+    description: Compliance and period reports
+paths:
+  /v1/reports/compliance:
+    get:
+      operationId: getComplianceExport
+      tags: [Reporting]
+      summary: Get compliance export bundle
+      x-repository: none
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: agentId
+          in: query
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        - name: period
+          in: query
+          schema:
+            type: string
+            description: ISO period or label (e.g. 2026-Q1)
+      responses:
+        '200':
+          description: Compliance bundle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComplianceExportResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/reports:
+    get:
+      operationId: listReports
+      tags: [Reporting]
+      summary: List generated reports
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/Cursor
+        - $ref: ./common/parameters.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: Reports page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PeriodReportListResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+    post:
+      operationId: createPeriodReport
+      tags: [Reporting]
+      summary: Create a period report
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PeriodReportCreateRequest'
+      responses:
+        '201':
+          description: Report created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PeriodReportResponse'
+        '400':
+          $ref: ./common/responses.yaml#/components/responses/BadRequest
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/reports/{reportId}:
+    get:
+      operationId: getReport
+      tags: [Reporting]
+      summary: Get period report
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/ReportId
+      responses:
+        '200':
+          description: Report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PeriodReportResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+components:
+  securitySchemes:
+    apiKey:
+      $ref: ./common/security.yaml#/components/securitySchemes/apiKey
+    bearerAuth:
+      $ref: ./common/security.yaml#/components/securitySchemes/bearerAuth
+
+  schemas:
+    ComplianceExport:
+      type: object
+      required: [period, auditEventCount, deniedActions, killSwitchInvocations]
+      properties:
+        agentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        period:
+          type: string
+        auditEventCount:
+          type: integer
+        deniedActions:
+          type: integer
+        killSwitchInvocations:
+          type: integer
+        exportRef:
+          type: string
+    ComplianceExportResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/ComplianceExport'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    PeriodReport:
+      type: object
+      required: [reportId, period, createdAt]
+      properties:
+        reportId:
+          $ref: ./common/primitives.yaml#/components/schemas/ReportId
+        period:
+          type: string
+        agentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        summary:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    PeriodReportCreateRequest:
+      type: object
+      required: [period]
+      properties:
+        period:
+          type: string
+          minLength: 1
+        agentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        summary:
+          type: string
+    PeriodReportResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/PeriodReport'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    PeriodReportListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PeriodReport'
+        nextCursor:
+          type: string
+    PeriodReportListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/PeriodReportListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta

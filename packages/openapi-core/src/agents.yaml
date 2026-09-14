@@ -1,0 +1,408 @@
+openapi: 3.1.0
+info:
+  title: Agentfence Agents API
+  version: 0.1.0
+  description: |
+    Agent identity registry — attestation, marketplace ID mapping, credential rotation, shadow-agent conflict detection (BR-1, BR-11).
+  license:
+    name: Proprietary
+    url: https://agentfence.local/license
+  x-domain: agt
+servers:
+  - url: https://api.agentfence.local
+    description: Agentfence API
+security:
+  - bearerAuth: []
+  - apiKey: []
+
+tags:
+  - name: Agents
+    description: Agent identity registration and marketplace ID mapping
+paths:
+  /v1/agents:
+    get:
+      operationId: listAgents
+      tags: [Agents]
+      summary: List registered agent identities
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/Cursor
+        - $ref: ./common/parameters.yaml#/components/parameters/Limit
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, suspended, killed]
+      responses:
+        '200':
+          description: Agents page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentIdentityListResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+    post:
+      operationId: registerAgent
+      tags: [Agents]
+      summary: Register a cryptographically verifiable agent identity
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentRegisterRequest'
+      responses:
+        '201':
+          description: Agent registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentIdentityResponse'
+        '400':
+          $ref: ./common/responses.yaml#/components/responses/BadRequest
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '409':
+          $ref: ./common/responses.yaml#/components/responses/Conflict
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/agents/shadow-conflicts:
+    get:
+      operationId: listShadowAgentConflicts
+      tags: [Agents]
+      summary: List shadow-agent / marketplace ID conflicts
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Conflict list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShadowConflictListResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/agents/{agentId}:
+    parameters:
+      - name: agentId
+        in: path
+        required: true
+        schema:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+    get:
+      operationId: getAgent
+      tags: [Agents]
+      summary: Get agent identity
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Agent identity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentIdentityResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+    patch:
+      operationId: updateAgent
+      tags: [Agents]
+      summary: Update agent metadata
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentUpdateRequest'
+      responses:
+        '200':
+          description: Updated agent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentIdentityResponse'
+        '400':
+          $ref: ./common/responses.yaml#/components/responses/BadRequest
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/agents/{agentId}/rotate-credentials:
+    post:
+      operationId: rotateAgentCredentials
+      tags: [Agents]
+      summary: Rotate agent runtime credentials
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      responses:
+        '200':
+          description: Credentials rotated (secret shown once)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentCredentialRotationResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/agents/{agentId}/marketplace-ids:
+    post:
+      operationId: mapAgentMarketplaceIds
+      tags: [Agents]
+      summary: Map marketplace external IDs to canonical enterprise agent
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentMarketplaceMapRequest'
+      responses:
+        '200':
+          description: Marketplace IDs mapped
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentIdentityResponse'
+        '400':
+          $ref: ./common/responses.yaml#/components/responses/BadRequest
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        '409':
+          $ref: ./common/responses.yaml#/components/responses/Conflict
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/agents/{agentId}/suspend:
+    post:
+      operationId: suspendAgent
+      tags: [Agents]
+      summary: Suspend an unregistered or non-compliant agent
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentSuspendRequest'
+      responses:
+        '200':
+          description: Agent suspended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentIdentityResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+components:
+  securitySchemes:
+    apiKey:
+      $ref: ./common/security.yaml#/components/securitySchemes/apiKey
+    bearerAuth:
+      $ref: ./common/security.yaml#/components/securitySchemes/bearerAuth
+
+  schemas:
+    RuntimeType:
+      type: string
+      enum: [fetch_aea, singularitynet, internal]
+    AgentStatus:
+      type: string
+      enum: [active, suspended, killed]
+    AgentIdentity:
+      type: object
+      required: [agentId, enterpriseId, status, runtimeType, createdAt, updatedAt]
+      properties:
+        agentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        enterpriseId:
+          type: string
+          minLength: 1
+        runtimeType:
+          $ref: '#/components/schemas/RuntimeType'
+        status:
+          $ref: '#/components/schemas/AgentStatus'
+        marketplaceIds:
+          type: object
+          additionalProperties:
+            type: string
+        parentAgentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        attestationStatus:
+          type: string
+          enum: [unverified, attested, revoked]
+        credentialRotatedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    AgentRegisterRequest:
+      type: object
+      required: [enterpriseId, runtimeType]
+      properties:
+        enterpriseId:
+          type: string
+          minLength: 1
+        runtimeType:
+          $ref: '#/components/schemas/RuntimeType'
+        parentAgentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        marketplaceExternalId:
+          type: string
+        marketplace:
+          type: string
+          enum: [fetch, singularitynet, internal]
+    AgentUpdateRequest:
+      type: object
+      properties:
+        enterpriseId:
+          type: string
+          minLength: 1
+        attestationStatus:
+          type: string
+          enum: [unverified, attested, revoked]
+    AgentMarketplaceMapRequest:
+      type: object
+      required: [marketplace, externalId]
+      properties:
+        marketplace:
+          type: string
+          enum: [fetch, singularitynet, internal]
+        externalId:
+          type: string
+          minLength: 1
+    AgentSuspendRequest:
+      type: object
+      required: [rationale]
+      properties:
+        rationale:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    AgentCredentialRotation:
+      type: object
+      required: [agentId, secret, rotatedAt]
+      properties:
+        agentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        secret:
+          type: string
+          description: Shown once at rotation
+        rotatedAt:
+          type: string
+          format: date-time
+    ShadowConflict:
+      type: object
+      required: [marketplace, externalId, conflictingAgentIds]
+      properties:
+        marketplace:
+          type: string
+        externalId:
+          type: string
+        conflictingAgentIds:
+          type: array
+          items:
+            $ref: ./common/primitives.yaml#/components/schemas/AgentId
+    ShadowConflictListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShadowConflict'
+    ShadowConflictListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/ShadowConflictListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    AgentCredentialRotationResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/AgentCredentialRotation'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    AgentIdentityResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/AgentIdentity'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    AgentIdentityListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentIdentity'
+        nextCursor:
+          type: string
+    AgentIdentityListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/AgentIdentityListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta

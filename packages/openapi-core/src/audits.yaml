@@ -1,0 +1,230 @@
+openapi: 3.1.0
+info:
+  title: Agentfence Audits API
+  version: 0.1.0
+  description: |
+    Tamper-evident append-only audit trail with model provenance and chain verification (BR-3, BR-10).
+  license:
+    name: Proprietary
+    url: https://agentfence.local/license
+  x-domain: aud
+servers:
+  - url: https://api.agentfence.local
+    description: Agentfence API
+security:
+  - bearerAuth: []
+  - apiKey: []
+
+tags:
+  - name: Audits
+    description: Tamper-evident action audit trail
+paths:
+  /v1/audits/events:
+    get:
+      operationId: listAuditEvents
+      tags: [Audits]
+      summary: List audit events
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/Cursor
+        - $ref: ./common/parameters.yaml#/components/parameters/Limit
+        - name: agentId
+          in: query
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/AgentId
+      responses:
+        '200':
+          description: Audit events page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEventListResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+    post:
+      operationId: appendAuditEvent
+      tags: [Audits]
+      summary: Append an audit event (PEP / runtime)
+      security:
+        - apiKey: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuditEventCreateRequest'
+      responses:
+        '201':
+          description: Event appended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEventResponse'
+        '400':
+          $ref: ./common/responses.yaml#/components/responses/BadRequest
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/audits/events/{eventId}:
+    get:
+      operationId: getAuditEvent
+      tags: [Audits]
+      summary: Get audit event
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            $ref: ./common/primitives.yaml#/components/schemas/AuditEventId
+      responses:
+        '200':
+          description: Audit event
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEventResponse'
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+  /v1/audits/verify-chain:
+    post:
+      operationId: verifyAuditChain
+      tags: [Audits]
+      summary: Verify tamper-evident hash chain for an agent tree
+      x-repository: none
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuditChainVerifyRequest'
+      responses:
+        '200':
+          description: Chain verification result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditChainVerifyResponse'
+        '400':
+          $ref: ./common/responses.yaml#/components/responses/BadRequest
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+components:
+  securitySchemes:
+    apiKey:
+      $ref: ./common/security.yaml#/components/securitySchemes/apiKey
+    bearerAuth:
+      $ref: ./common/security.yaml#/components/securitySchemes/bearerAuth
+
+  schemas:
+    AuditOutcome:
+      type: string
+      enum: [allowed, denied, exception]
+    AuditEvent:
+      type: object
+      required: [eventId, agentId, actionType, outcome, recordHash, occurredAt]
+      properties:
+        eventId:
+          $ref: ./common/primitives.yaml#/components/schemas/AuditEventId
+        agentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        actionType:
+          type: string
+        outcome:
+          $ref: '#/components/schemas/AuditOutcome'
+        recordHash:
+          type: string
+        previousHash:
+          type: string
+        modelProvenance:
+          type: string
+        detailRef:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+    AuditEventCreateRequest:
+      type: object
+      required: [agentId, actionType, outcome]
+      properties:
+        agentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        actionType:
+          type: string
+        outcome:
+          $ref: '#/components/schemas/AuditOutcome'
+        modelProvenance:
+          type: string
+        detailRef:
+          type: string
+    AuditChainVerifyRequest:
+      type: object
+      required: [agentId]
+      properties:
+        agentId:
+          $ref: ./common/primitives.yaml#/components/schemas/AgentId
+        fromEventId:
+          $ref: ./common/primitives.yaml#/components/schemas/AuditEventId
+        toEventId:
+          $ref: ./common/primitives.yaml#/components/schemas/AuditEventId
+    AuditChainVerifyResult:
+      type: object
+      required: [valid, checkedCount]
+      properties:
+        valid:
+          type: boolean
+        checkedCount:
+          type: integer
+        brokenAtEventId:
+          $ref: ./common/primitives.yaml#/components/schemas/AuditEventId
+        detail:
+          type: string
+    AuditChainVerifyResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/AuditChainVerifyResult'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    AuditEventResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/AuditEvent'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    AuditEventListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditEvent'
+        nextCursor:
+          type: string
+    AuditEventListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/AuditEventListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
